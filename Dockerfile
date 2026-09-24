@@ -5,7 +5,8 @@ RUN npm init -y >/dev/null 2>&1 \
 
 FROM python:3.13-alpine
 WORKDIR /app
-COPY server.py cell_towers.py wigle_sync.py /app/
+COPY server.py cell_towers.py wigle_sync.py neighborhoods.py /app/
+COPY catalog /app/catalog
 COPY qrcode /app/qrcode
 COPY public /app/public
 COPY samples /app/samples

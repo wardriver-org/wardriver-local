@@ -20,7 +20,7 @@ Import your observations, explore coverage, and plan your next survey. Wardriver
 | :--- | :--- |
 | **Map** | Device points, GPS traces, heatmaps, coverage gaps, and optional cached cell sites. |
 | **Survey** | Imports, collection-method tagging, drive/walk planning, and navigation exports. |
-| **Insights** | Statistics, XP, awards, and optional user-configured neighborhood zones. |
+| **Insights** | Statistics, XP, awards, and neighborhoods that load automatically for uploaded major-city surveys. |
 | **Flock** | Conservative candidate classification, manual review, photos, and public-source checks. |
 | **Data** | Record browsing, import comparisons, exports, and local plain-language queries. |
 
@@ -41,7 +41,7 @@ docker compose up -d --build
 
 Open **[http://127.0.0.1:8787](http://127.0.0.1:8787)** and import a survey under **Survey**. `samples/sample.csv` contains synthetic demonstration data.
 
-Fresh installations start with a global view and no geographic basemap. No home city or survey region is bundled. Use map search or **Fit** after importing observations to move to your survey area.
+Fresh installations start with a global view and no geographic basemap. No home city is selected by default. Bundled neighborhood packs activate only when your uploaded observations reach a supported city. Use map search or **Fit** after importing observations to move to your survey area.
 
 For a local basemap, set `WARDIVER_MAP_BBOX` in `.env` to your desired `west,south,east,north` bounds, then run:
 
@@ -77,7 +77,27 @@ docker compose logs --tail=100 wardriver nginx
 
 **Do not run `docker compose down -v` unless you intend to delete these volumes.** Use `docker compose stop` to pause the stack.
 
-This distribution removes the previously bundled regional neighborhood catalog. Existing observations and photos are preserved; neighborhood progress and XP reflect your locally configured zones. Add your own zones as described in the configuration guide.
+## 🏙️ Neighborhoods that follow your uploads
+
+The bundled catalog covers **88 major U.S. cities and 5,737 survey zones**, including
+all **50 original Los Angeles-area zones**. Major cities means 2020 Census
+incorporated places with at least 250,000 residents, plus Urban Honolulu.
+
+- Import a file or sync your own WiGLE logs; actual observation locations identify cities.
+- Only matching city packs are decompressed. A trip spanning two distant cities
+  does not activate the cities between them.
+- Activated cities persist locally across restarts. A full data reset clears activation.
+- No neighborhood API request, reverse geocoding, or upload of your coordinates is needed.
+- Local custom zones still work and override bundled zones with matching keys.
+
+Coverage and source age vary. Polygon data uses polygon membership; the original
+Los Angeles zones and selected sparse-city place targets use explicitly labeled
+approximate survey boxes. These are progress regions, not legal boundaries.
+
+See [Configuration](docs/configuration.md#neighborhood-awards) and the
+[city coverage inventory](catalog/neighborhoods/coverage.csv). Data credits and
+licenses are in [ATTRIBUTION.txt](catalog/neighborhoods/ATTRIBUTION.txt).
+
 
 ## 📚 Documentation
 

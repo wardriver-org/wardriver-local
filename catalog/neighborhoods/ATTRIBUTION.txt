@@ -1,0 +1,41 @@
+MAJOR U.S. CITY NEIGHBORHOOD CATALOG
+
+City eligibility and activation geometry: U.S. Census Bureau, 2020 Census
+TIGERweb incorporated places >=250,000 residents, plus Urban Honolulu CDP.
+50 states and District of Columbia only. City geometries are generalized to
+0.001 degree from the source service; this is not a legal boundary dataset.
+https://tigerweb.geo.census.gov/arcgis/rest/services/Census2020/tigerWMS_Census2020/MapServer
+
+Zillow neighborhood data: © Zillow, Creative Commons Attribution-ShareAlike 3.0.
+https://creativecommons.org/licenses/by-sa/3.0/
+Sources: AlexMotz/us-neighborhood-geojson, tree
+ a1fe3bb6cd4cb54b7ccfd6cdbe782c55d1db862f
+and US EPA Zillow Neighborhoods (2017).
+https://gispub.epa.gov/arcgis/rest/services/OEI/Zillow_Neighborhoods/MapServer
+https://catalog.data.gov/dataset/neighborhoods-us-2017-zillow-segs
+Changes: selected major cities, normalized metadata, rounded coordinates to
+five decimal places, deduplicated names, and split into compressed city packs.
+Zillow-derived records in these packs remain under CC BY-SA 3.0.
+
+Additional mapped places for sparse cities: © OpenStreetMap contributors,
+Open Database License 1.0 (ODbL).
+https://www.openstreetmap.org/copyright
+https://opendatacommons.org/licenses/odbl/1-0/
+These OSM-derived records and their derived survey boxes are available under
+ODbL 1.0. Points are represented by approximate boxes extending 500 meters
+north/south/east/west from the mapped place center; bounded features use their
+bounding box. These are survey targets, not asserted neighborhood boundaries.
+Source element URLs and queries are retained in the packs. Source snapshot
+retrieved 2026-09-24.
+
+Laredo: City of Laredo Open Data, OL Neighborhoods. These are unofficial
+neighborhoods of Old Laredo. See LICENSE.laredo.txt for the source disclaimer.
+
+Los Angeles: original Wardriver legacy survey boxes restored with original
+keys. They are approximate progress regions, including nearby communities.
+
+Each city pack contains source and license metadata. The index is an inventory
+of independently attributed data sources, not a claim that all records share
+one license. Source data licenses do not assign a license to application code.
+No source organization endorses Wardriver. Coverage and vintage vary by city;
+this catalog is not an exhaustive or official list of neighborhoods.

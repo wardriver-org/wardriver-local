@@ -51,7 +51,7 @@ inferred methods remain separate. Use Transit for rail trips.
 ## Awards
 
 Neighborhood awards require 500 unique devices per configured zone and award
-100 XP each. No neighborhood geography is bundled; see [Configuration](configuration.md).
+100 XP each. Major-city packs activate from uploaded observations; see [Configuration](configuration.md).
 Other progression includes drive counts, unique devices, coverage, distance,
 streaks, collection methods, eligible Flock observations, and walking milestones.
 

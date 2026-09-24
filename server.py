@@ -3,6 +3,7 @@ import gzip
 import sys
 import wigle_sync
 import cell_towers
+import neighborhoods
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
@@ -38,7 +39,7 @@ MAP_DEFAULT_PROVIDER = os.environ.get('WARDIVER_BASEMAP_PROVIDER', 'none').strip
 MAP_DEFAULT_URL = os.environ.get('WARDIVER_BASEMAP_URL', '').strip()
 MAP_DEFAULT_ATTRIBUTION = os.environ.get('WARDIVER_BASEMAP_ATTRIBUTION', '').strip()
 MAP_DEFAULT_CACHE = os.environ.get('WARDIVER_BASEMAP_CACHE_ALLOWED', '0') == '1'
-APP_VERSION = '2.21.0'
+APP_VERSION = '2.22.0'
 IMPORT_MAX_BYTES = 512 * 1024 * 1024
 SYNC_DEFAULT_BASE_URL = os.environ.get('WARDIVER_SYNC_BASE_URL', 'https://wardriver.org').rstrip('/')
 SYNC_HEALTH_PATH = os.environ.get('WARDIVER_SYNC_HEALTH_PATH', '/api/v1/health')
@@ -1352,13 +1353,21 @@ def load_neighborhood_zones(path):
 NEIGHBORHOOD_ZONES = load_neighborhood_zones(DB_PATH.parent / 'neighborhoods.json')
 
 
+def neighborhood_zones(conn):
+    return neighborhoods.zones(conn, NEIGHBORHOOD_ZONES)
+
+
 def sync_neighborhood_catalog(conn):
-    signature = hashlib.sha256(json.dumps(NEIGHBORHOOD_ZONES, sort_keys=True).encode()).hexdigest()
+    neighborhoods.activate(conn)
+    active = list(map(tuple, conn.execute('select city_id,digest from neighborhood_cities order by city_id')))
+    signature = hashlib.sha256(json.dumps([NEIGHBORHOOD_ZONES, active], sort_keys=True).encode()).hexdigest()
     marker = 'neighborhood_catalog:' + signature
     if not _migration_done(conn, marker):
         rebuild_neighborhood_memberships(conn)
         conn.execute("delete from schema_migrations where name like 'neighborhood_catalog:%'")
-        _mark_migration(conn, marker)
+        conn.execute('insert or replace into schema_migrations(name,applied_at) values (?,?)',(marker,datetime.now(timezone.utc).isoformat()))
+        return True
+    return False
 
 
 # v2.16 scale materializations. These keep hot-page work proportional to the
@@ -1477,11 +1486,11 @@ def _refresh_neighborhood_memberships(conn, keys):
     rows=conn.execute("""select d.device_key,d.latitude,d.longitude,d.first_seen,d.last_seen,d.observation_count
                          from devices d join affected_neighborhood_keys a on a.k=d.device_key""").fetchall()
     batch=[]
+    zone_index=neighborhoods.ZoneIndex(neighborhood_zones(conn))
     for r in rows:
         lat=float(r['latitude']);lon=float(r['longitude'])
-        for z in NEIGHBORHOOD_ZONES:
-            if z['south']<=lat<=z['north'] and z['west']<=lon<=z['east']:
-                batch.append((z['key'],r['device_key'],r['first_seen'],r['last_seen'],int(r['observation_count'] or 0)))
+        for z in zone_index.matches(lat,lon):
+            batch.append((z['key'],r['device_key'],r['first_seen'],r['last_seen'],int(r['observation_count'] or 0)))
         if len(batch)>=5000:
             conn.executemany('insert or replace into neighborhood_devices(neighborhood_key,device_key,first_seen,last_seen,observation_count) values (?,?,?,?,?)',batch);batch=[]
     if batch:conn.executemany('insert or replace into neighborhood_devices(neighborhood_key,device_key,first_seen,last_seen,observation_count) values (?,?,?,?,?)',batch)
@@ -1489,12 +1498,19 @@ def _refresh_neighborhood_memberships(conn, keys):
 
 def rebuild_neighborhood_memberships(conn):
     conn.execute('delete from neighborhood_devices')
-    for z in NEIGHBORHOOD_ZONES:
-        conn.execute("""insert or replace into neighborhood_devices(neighborhood_key,device_key,first_seen,last_seen,observation_count)
-                        select ?,d.device_key,d.first_seen,d.last_seen,d.observation_count
-                        from device_rtree r join devices d on d.rowid=r.rowid
-                        where r.max_lat>=? and r.min_lat<=? and r.max_lon>=? and r.min_lon<=?""",
-                     (z['key'],z['south'],z['north'],z['west'],z['east']))
+    for z in neighborhood_zones(conn):
+        rows=conn.execute("""select d.device_key,d.latitude,d.longitude,d.first_seen,d.last_seen,d.observation_count
+            from device_rtree r join devices d on d.rowid=r.rowid
+            where r.max_lat>=? and r.min_lat<=? and r.max_lon>=? and r.min_lon<=?""",
+            (z['south'],z['north'],z['west'],z['east']))
+        batch=[]
+        for r in rows:
+            if neighborhoods.contains(z,float(r['latitude']),float(r['longitude'])):
+                batch.append((z['key'],r['device_key'],r['first_seen'],r['last_seen'],r['observation_count']))
+            if len(batch)>=1000:
+                conn.executemany('insert or replace into neighborhood_devices values (?,?,?,?,?)',batch)
+                batch=[]
+        if batch:conn.executemany('insert or replace into neighborhood_devices values (?,?,?,?,?)',batch)
     return conn.execute('select count(*) from neighborhood_devices').fetchone()[0]
 
 
@@ -1606,7 +1622,7 @@ def _neighborhood_metrics(conn, now_ts=None):
               coalesce(sum(observation_count),0) observations,min(first_seen) first_seen,max(last_seen) last_seen
               from neighborhood_devices group by neighborhood_key""")}
     out=[]
-    for z in NEIGHBORHOOD_ZONES:
+    for z in neighborhood_zones(conn):
         row=grouped.get(z['key'],{});devices=int(row.get('devices') or 0);observations=int(row.get('observations') or 0)
         earned=devices>=NEIGHBORHOOD_UNLOCK_TARGET;earned_at=None
         if earned:
@@ -1626,12 +1642,15 @@ def _neighborhood_metrics(conn, now_ts=None):
         out.append({'key':z['key'],'name':z['name'],'icon':z['icon'],'group':z['group'],'south':z['south'],'north':z['north'],'west':z['west'],'east':z['east'],
                     'center_lat':center_lat,'center_lon':center_lon,'devices':devices,'observations':observations,'target':NEIGHBORHOOD_UNLOCK_TARGET,
                     'gap':gap,'progress':progress,'earned':earned,'earned_at':earned_at,'first_seen':row.get('first_seen'),'last_seen':row.get('last_seen'),
-                    'stale_days':stale_days,'reason':reason,'base_priority':round(priority,1)})
+                    'stale_days':stale_days,'reason':reason,'base_priority':round(priority,1),
+                    'source':z.get('source','User configuration'),'boundary_type':z.get('boundary_type','custom survey box')})
     unlocked=sum(1 for x in out if x['earned']);locked=[x for x in out if not x['earned']]
     next_unlock=min(locked,key=lambda x:(x['gap'],-x['devices'],x['name'])) if locked else None
     return {'target':NEIGHBORHOOD_UNLOCK_TARGET,'xp_each':NEIGHBORHOOD_UNLOCK_XP,'unlocked':unlocked,'total':len(out),
             'neighborhood_xp':unlocked*NEIGHBORHOOD_UNLOCK_XP,'next_unlock':next_unlock,'zones':out,
-            'boundary_note':'Curated offline survey zones; boundaries are approximate and intended for progress tracking, not legal/municipal use.'}
+            'cities':[{'id':c['id'],'name':c['name'],'state':c['state']} for c in neighborhoods.active_cities(conn)],
+            'supported_cities':len(neighborhoods.manifest()['cities']),
+            'boundary_note':'Offline survey zones, not legal boundaries. Neighborhood data: Zillow (CC BY-SA 3.0); © OpenStreetMap contributors (ODbL); City of Laredo Open Data. Approximate zones are labeled. City selection: U.S. Census Bureau. Los Angeles legacy zones are approximate.'}
 
 def _build_perf_summary():
     conn=db();now=time.time();now_dt=datetime.now(timezone.utc);stale_cutoff_iso=datetime.fromtimestamp(now-180*86400,timezone.utc).isoformat()
@@ -1952,7 +1971,8 @@ def refresh_devices_for_keys(conn, keys):
                                                 from devices d join affected_device_keys a on a.k=d.device_key""")]
     _apply_map_rollup_changes(conn,old_rows,new_rows)
     _apply_device_summary_changes(conn,old_rows,new_rows)
-    _refresh_neighborhood_memberships(conn,keys)
+    if not sync_neighborhood_catalog(conn):
+        _refresh_neighborhood_memberships(conn,keys)
     refresh_flock_assessments(conn,keys)
 
 def _track_fix_key(drive_key, ts, lat, lon):
@@ -2015,6 +2035,7 @@ def _initialize_database(c):
     try:c.execute('pragma journal_mode=WAL')
     except Exception:pass
     c.executescript(SCHEMA)
+    neighborhoods.setup(c)
 
     obs_cols={r[1] for r in c.execute('pragma table_info(observations)').fetchall()}
     for col,decl in [
@@ -4409,7 +4430,7 @@ class H(BaseHTTPRequestHandler):
             conn=db()
             try:
                 conn.execute('begin immediate');conn.execute('delete from observations');conn.execute('delete from import_runs')
-                for table in ('devices','track_fixes','drive_devices','drive_stats','drive_days','drive_coverage_cells','coverage_cells','neighborhood_devices','map_cells','source_scope_stats','device_summary_counts','device_discovery_months','device_bssid_parents','flock_assessments','flock_reviews','flock_fingerprints','flock_external_checks','flock_source_notes'):
+                for table in ('devices','track_fixes','drive_devices','drive_stats','drive_days','drive_coverage_cells','coverage_cells','neighborhood_devices','neighborhood_cities','map_cells','source_scope_stats','device_summary_counts','device_discovery_months','device_bssid_parents','flock_assessments','flock_reviews','flock_fingerprints','flock_external_checks','flock_source_notes'):
                     conn.execute('delete from '+table)
                 conn.commit()
             except:conn.rollback();raise

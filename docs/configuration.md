@@ -28,9 +28,40 @@ Browser libraries are downloaded during the Docker build. Runtime maps read
 
 ## Neighborhood awards
 
-No regional catalog is bundled. To enable neighborhood awards, create your own
-`neighborhoods.json` as a list of zones. This synthetic example illustrates the
-format; replace its bounds and name with a zone you want to survey:
+City neighborhood packs load automatically when a successful import contains an
+observation inside a supported city's activation area. The major-city list is
+fixed to the 2020 Census: incorporated places of at least 250,000 residents in
+the 50 states/DC, plus Urban Honolulu CDP (88 cities). Smaller cities are excluded,
+except the nearby communities retained within the original Los Angeles pack.
+The map still starts globally; restoring the Los Angeles catalog does not make
+Los Angeles the user's default location.
+
+The application reads only a small city index initially. An RTree query checks
+actual observations, then a city-polygon check filters bounding-box false positives.
+Only matched city files are decompressed; at most eight packs are cached in memory.
+City activation and neighborhood progress use the same transaction as the import.
+Rejected/rolled-back imports do not activate cities. Existing observations also
+activate matching cities once at upgrade/startup. Demonstration rows with the
+reserved `sample` source do not trigger activation.
+
+Activation is persistent in SQLite. Deleting an individual import retains its
+city catalog but recalculates its device progress. The full data reset clears all
+city activation. Restarting needs no download, and neighborhood loading sends no
+survey data to an external service. It does not download basemap tiles.
+
+Source coverage is not exhaustive or uniform: some cities have only a few mapped
+neighborhoods. Zillow polygons, OSM place-based targets, city open data, and the
+original Los Angeles boxes are attributed separately in the catalog. Approximate
+boxes are marked in the UI. Device membership uses the materialized device's
+representative coordinate, consistent with the dashboard's existing device model.
+City activation instead uses raw observation coordinates, so a moving device can
+activate more than one city. Old neighborhood keys are retained for the 50 restored
+Los Angeles zones.
+
+### Optional custom zones
+
+To add private survey zones, create a local `neighborhoods.json` list. The example
+below is synthetic; replace its bounds and name with a zone you want to survey:
 
 ```json
 [
@@ -38,6 +69,9 @@ format; replace its bounds and name with a zone you want to survey:
    "south":10.0,"north":10.1,"west":-10.1,"east":-10.0}
 ]
 ```
+
+Custom keys override matching bundled keys; other custom zones are added alongside
+activated city packs. No custom configuration is required for the bundled catalog.
 
 Keys must be unique lowercase identifiers. Coordinates must be finite, ordered
 geographic bounds; antimeridian-crossing boxes must be split into separate zones.
@@ -50,7 +84,7 @@ docker compose restart wardriver
 
 On restart, changed catalogs rebuild neighborhood memberships from existing
 devices. Observations, reviews, and photos are preserved. Neighborhood XP may
-change. An empty list disables neighborhood awards; invalid files stop startup
+change. An empty list removes custom zones only; bundled cities still activate. Invalid files stop startup
 with an error instead of silently choosing a different region. This private
 configuration is excluded from Git.
 

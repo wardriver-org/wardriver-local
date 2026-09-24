@@ -1,0 +1,89 @@
+city,state,population_2020,neighborhood_zones
+"New York City",NY,8804190,129
+"Los Angeles",CA,3898747,110
+"Chicago",IL,2746388,77
+"Houston",TX,2304580,26
+"Phoenix",AZ,1608139,15
+"Philadelphia",PA,1603797,56
+"San Antonio",TX,1434625,375
+"San Diego",CA,1386932,86
+"Dallas",TX,1304379,34
+"San Jose",CA,1013240,18
+"Austin",TX,961855,61
+"Jacksonville",FL,949611,197
+"Fort Worth",TX,918915,16
+"Columbus",OH,905748,39
+"Indianapolis",IN,887642,85
+"Charlotte",NC,874579,157
+"San Francisco",CA,873965,34
+"Seattle",WA,737015,78
+"Denver",CO,715522,22
+"Washington",DC,689545,34
+"Nashville",TN,689447,91
+"Oklahoma City",OK,681054,15
+"El Paso",TX,678815,55
+"Boston",MA,675647,16
+"Portland",OR,652503,63
+"Las Vegas",NV,641903,26
+"Detroit",MI,639111,92
+"Memphis",TN,633104,13
+"Baltimore",MD,585708,54
+"Milwaukee",WI,577222,190
+"Albuquerque",NM,564559,227
+"Tucson",AZ,542629,130
+"Fresno",CA,542107,12
+"Sacramento",CA,524943,119
+"Kansas City",MO,508090,145
+"Mesa",AZ,504258,6
+"Atlanta",GA,498715,32
+"Omaha",NE,486051,16
+"Colorado Springs",CO,478961,11
+"Raleigh",NC,467665,18
+"Long Beach",CA,466742,27
+"Virginia Beach",VA,459470,6
+"Miami",FL,442241,14
+"Oakland",CA,440646,131
+"Minneapolis",MN,429954,84
+"Tulsa",OK,413066,205
+"Bakersfield",CA,403455,44
+"Wichita",KS,397532,73
+"Arlington",TX,394266,8
+"Louisville",KY,386884,67
+"Aurora",CO,386261,53
+"Tampa",FL,384959,73
+"New Orleans",LA,383997,71
+"Cleveland",OH,372624,36
+"Honolulu",HI,350964,35
+"Anaheim",CA,346824,6
+"Lexington",KY,322570,38
+"Stockton",CA,320804,15
+"Corpus Christi",TX,317863,7
+"Henderson",NV,317610,23
+"Riverside",CA,314998,28
+"Newark",NJ,311549,20
+"Saint Paul",MN,311527,17
+"Santa Ana",CA,310227,60
+"Cincinnati",OH,309317,45
+"Irvine",CA,307670,24
+"Orlando",FL,307573,116
+"Pittsburgh",PA,302971,91
+"Saint Louis",MO,301578,83
+"Greensboro",NC,299035,2
+"Jersey City",NJ,292449,11
+"Anchorage",AK,291247,38
+"Lincoln",NE,291082,45
+"Plano",TX,285494,19
+"Durham",NC,283506,119
+"Buffalo",NY,278349,52
+"Chandler",AZ,275987,107
+"Chula Vista",CA,275487,22
+"Toledo",OH,270871,24
+"Madison",WI,269840,124
+"Gilbert",AZ,267918,186
+"Reno",NV,264165,8
+"Fort Wayne",IN,263886,315
+"North Las Vegas",NV,262527,2
+"St. Petersburg",FL,258308,115
+"Lubbock",TX,257141,40
+"Irving",TX,256684,2
+"Laredo",TX,255205,26

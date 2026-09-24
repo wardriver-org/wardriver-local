@@ -15,7 +15,11 @@ queries without repeatedly scanning every observation.
 - Track pages are accumulated before replacing the last successful snapshot;
   stale or failed requests cannot publish a partial replacement.
 - Data browsing is paginated; exports stream responses.
-- Neighborhood memberships rebuild when the local catalog changes.
+- Neighborhood city packs activate transactionally from indexed observations.
+- The small city index is loaded eagerly; city files use a bounded eight-pack cache.
+- Polygon membership and spatial buckets filter active neighborhood candidates.
+- Memberships rebuild when a new city activates or a catalog changes; ordinary
+  repeated-city imports update only affected device memberships.
 
 The default worker pool has eight workers, bounded to 2–32 by
 `WARDIVER_HTTP_WORKERS`. Increasing concurrency can increase contention rather
