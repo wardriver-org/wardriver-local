@@ -1,0 +1,79 @@
+name: wardriver-local
+
+services:
+  wardriver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wardriver-local
+    restart: unless-stopped
+    environment:
+      WARDIVER_DB: /data/wardriver.db
+      WARDIVER_FLOCK_PHOTO_DIR: /data/flock-photos
+      WARDIVER_FLOCK_PHOTO_MAX_BYTES: ${WARDIVER_FLOCK_PHOTO_MAX_BYTES:-10485760}
+      WARDIVER_HOST: 0.0.0.0
+      WARDIVER_PORT: 8787
+      WARDIVER_HTTP_WORKERS: ${WARDIVER_HTTP_WORKERS:-8}
+      WARDIVER_GEOCODER_URL: ${WARDIVER_GEOCODER_URL:-https://nominatim.openstreetmap.org}
+      WARDIVER_ROUTER_URL: ${WARDIVER_ROUTER_URL:-https://router.project-osrm.org}
+      WARDIVER_ROUTER_TIMEOUT: ${WARDIVER_ROUTER_TIMEOUT:-12}
+      WARDIVER_TILE_DIR: /data/tiles
+      WARDIVER_PMTILES: /maps/region.pmtiles
+      # Enable selfhosted after installing your chosen PMTiles region.
+      # Existing SQLite settings are migrated from the old TileServer URL.
+      WARDIVER_BASEMAP_PROVIDER: ${WARDIVER_BASEMAP_PROVIDER:-none}
+      WARDIVER_BASEMAP_URL: ${WARDIVER_BASEMAP_URL:-/maps/region.pmtiles}
+      WARDIVER_BASEMAP_ATTRIBUTION: ${WARDIVER_BASEMAP_ATTRIBUTION:-© OpenStreetMap contributors · Protomaps}
+      WARDIVER_BASEMAP_CACHE_ALLOWED: ${WARDIVER_BASEMAP_CACHE_ALLOWED:-0}
+      # Optional wardriver.org sync adapter; disabled in SQLite until enabled in UI.
+      WARDIVER_SYNC_BASE_URL: ${WARDIVER_SYNC_BASE_URL:-https://wardriver.org}
+      WARDIVER_SYNC_HEALTH_PATH: ${WARDIVER_SYNC_HEALTH_PATH:-/api/v1/health}
+      WARDIVER_SYNC_IMPORT_PATH: ${WARDIVER_SYNC_IMPORT_PATH:-/api/v1/imports}
+      WARDIVER_SYNC_TIMEOUT: ${WARDIVER_SYNC_TIMEOUT:-20}
+      WARDIVER_SYNC_CHUNK_SIZE: ${WARDIVER_SYNC_CHUNK_SIZE:-1000}
+    volumes:
+      - wardriver_data:/data
+      - wardriver_maps:/maps:ro
+    ports:
+      - "127.0.0.1:${WARDIVER_BACKEND_PORT:-8788}:8787"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/api/health', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # One-shot regional PMTiles downloader/extractor.
+  # Run with: docker compose --profile map-setup run --rm map-init
+  map-init:
+    profiles: ["map-setup"]
+    image: protomaps/go-pmtiles:v1.30.1
+    container_name: wardriver-map-init
+    volumes:
+      - wardriver_maps:/data
+    command:
+      - extract
+      - ${WARDIVER_MAP_SOURCE:-https://build.protomaps.com/20260722.pmtiles}
+      - /data/region.pmtiles
+      - --bbox=${WARDIVER_MAP_BBOX:-SET_YOUR_REGION_FIRST}
+      - --maxzoom=${WARDIVER_MAP_MAXZOOM:-15}
+      - --download-threads=${WARDIVER_MAP_DOWNLOAD_THREADS:-8}
+
+  nginx:
+    image: nginx:1.28-alpine
+    container_name: wardriver-nginx
+    restart: unless-stopped
+    depends_on:
+      wardriver:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WARDIVER_PORT:-8787}:8787"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - wardriver_maps:/maps:ro
+      - wardriver_nginx_cache:/var/cache/nginx
+
+volumes:
+  wardriver_data:
+  wardriver_maps:
+  wardriver_nginx_cache:

@@ -1,0 +1,3 @@
+kind,name,bssid,security,channel,latitude,longitude
+wifi,Sample WiFi,02:00:00:00:00:01,WPA2,6,10.0522,-10.2437
+alpr,Sample ALPR,,,,10.0611,-10.3081

@@ -1,0 +1,32 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Runtime data and map archives
+/data/
+/backups/
+/imports/
+/exports/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.pmtiles
+*.mbtiles
+# Generated files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+public/vendor/
+*.log
+*.zip
+*.tar.gz
+.DS_Store
+Thumbs.db
+
+# Private neighborhood configuration
+neighborhoods.json
