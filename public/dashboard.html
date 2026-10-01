@@ -1193,7 +1193,7 @@ function mapBaseStyle(){
  const bg=dark?'#111827':'#eef2f5',earth=dark?'#1b2430':'#f4f2ea',land=dark?'#223029':'#e5edda',use=dark?'#252b32':'#e8e7df',water=dark?'#16334a':'#b7d7e8',building=dark?'#343a42':'#d9d4cd',roadCase=dark?'#1a2028':'#ffffff',road=dark?'#76808b':'#b9b8b4',major=dark?'#b58b48':'#d6b56d',highway=dark?'#d39d4b':'#e5b45b',boundary=dark?'#666f7a':'#a9a6a1';
  const style={version:8,name:'Wardriver Local',sources:{},layers:[{id:'background',type:'background',paint:{'background-color':bg}}]};
  if(provider==='selfhosted'){
-  const archive=`${location.origin}/maps/region.pmtiles`;
+  const archive=new URL(mapCfg.tile_url_template||'/maps/region.pmtiles',location.origin).href;
   style.sources.protomaps={type:'vector',url:`pmtiles://${archive}`,attribution:mapCfg.attribution||'© OpenStreetMap contributors · Protomaps'};
   style.layers.push(
    {id:'earth',type:'fill',source:'protomaps','source-layer':'earth',paint:{'fill-color':earth}},
@@ -2295,7 +2295,7 @@ function applyMapSettings(cfg){
  mapCfg=next;
  syncBasemapFallbackGrid();
  document.querySelector('#mapProvider').value=mapCfg.provider||'none';
- document.querySelector('#mapTileUrl').value=mapCfg.provider==='selfhosted'?'/maps/region.pmtiles':(mapCfg.tile_url_template||'');
+ document.querySelector('#mapTileUrl').value=mapCfg.tile_url_template||(mapCfg.provider==='selfhosted'?'/maps/region.pmtiles':'');
  document.querySelector('#mapTileUrl').readOnly=mapCfg.provider==='selfhosted';
  document.querySelector('#mapAttribution').value=mapCfg.attribution||'';
  document.querySelector('#mapCacheAllowed').checked=!!mapCfg.cache_allowed;
@@ -2303,7 +2303,7 @@ function applyMapSettings(cfg){
  document.querySelector('#mapAttrib').textContent=mapCfg.provider==='none'?'Basemap disabled':(mapCfg.attribution||'Basemap');
  document.querySelector('#cacheArea').disabled=mapCfg.provider!=='custom'||!mapCfg.cache_allowed;
  document.querySelector('#cacheMap').disabled=mapCfg.provider!=='custom'||!mapCfg.cache_allowed;
- document.querySelector('#mapStatus').textContent=mapCfg.provider==='none'?'Basemap disabled. Points, heatmaps, routes, and imports still work.':mapCfg.provider==='selfhosted'?'Self-hosted PMTiles selected · MapLibre reads maps/region.pmtiles directly.':`Custom raster basemap configured${mapCfg.cache_allowed?' · offline cache enabled':' · cache disabled'}.`;
+ document.querySelector('#mapStatus').textContent=mapCfg.provider==='none'?'Basemap disabled. Points, heatmaps, routes, and imports still work.':mapCfg.provider==='selfhosted'?'Self-hosted PMTiles selected · MapLibre reads the selected local archive directly.':`Custom raster basemap configured${mapCfg.cache_allowed?' · offline cache enabled':' · cache disabled'}.`;
  // Only replace a live MapLibre style when the basemap configuration actually changed.
  if(previous!==mapCfgSignature(mapCfg))applyBasemapStyle();
 }
@@ -2713,4 +2713,5 @@ load().catch(e=>document.querySelector('#mapnote').textContent='API error: '+e.m
 </script>
 <script src="/cell-towers.js"></script>
 <script src="/wigle-sync.js"></script>
+<script src="/map-areas.js"></script>
 </body></html>
