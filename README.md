@@ -30,6 +30,10 @@ Import your observations, explore coverage, and plan your next survey. Wardriver
 - **WiGLE:** manually sync your own upload history and optionally send a selected local import.
 - **Maps:** optional local PMTiles, custom raster tiles, or a grid without a basemap.
 
+## Download cities and regions
+
+Use **Settings → Download map areas** to download a city, region, country bounding box, or the current map view. Choose detail, track progress, cancel, and switch between saved local maps. Downloads are opt-in and preserve your existing map. See the [map-area guide](docs/map-areas.md) for installation, privacy, limits, and updates.
+
 ## 🚀 Quick start
 
 Install Docker Engine and the Docker Compose plugin. From this repository:

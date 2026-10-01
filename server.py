@@ -4,6 +4,7 @@ import sys
 import wigle_sync
 import cell_towers
 import neighborhoods
+import map_areas
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
@@ -2589,6 +2590,24 @@ def fetch_driving_route(points):
     }
 
 
+_MAP_AREAS = None
+_MAP_AREAS_LOCK = threading.Lock()
+def map_area_manager():
+    global _MAP_AREAS
+    with _MAP_AREAS_LOCK:
+        if _MAP_AREAS is None:
+            _MAP_AREAS = map_areas.Areas(DB_PATH.parent / 'map-areas')
+    return _MAP_AREAS
+
+def local_map_path(url):
+    if url == '/maps/region.pmtiles': return PMTILES_PATH
+    match = re.fullmatch(r'/maps/areas/([a-f0-9]{32})\.pmtiles', url)
+    if not match: raise ValueError('Invalid local map URL')
+    path = map_area_manager().path(match[1])
+    if not path.is_file(): raise ValueError('Downloaded map area is missing')
+    return path
+
+
 def map_settings(conn=None):
     own = conn is None
     conn = conn or db()
@@ -2641,16 +2660,18 @@ def tile_cache_stats():
     files=list(TILE_DIR.rglob('*.png'))
     return {'tiles':len(files),'bytes':sum(f.stat().st_size for f in files)}
 
-def pmtiles_info():
-    exists=PMTILES_PATH.exists() and PMTILES_PATH.is_file()
-    size=PMTILES_PATH.stat().st_size if exists else 0
+def pmtiles_info(url=None):
+    url=url or '/maps/region.pmtiles'
+    archive=local_map_path(url)
+    exists=archive.exists() and archive.is_file()
+    size=archive.stat().st_size if exists else 0
     return {
         'exists': bool(exists),
-        'path': str(PMTILES_PATH),
-        'url': '/maps/region.pmtiles',
+        'path': str(archive),
+        'url': url,
         'bytes': int(size),
         'mb': round(size/1048576, 1) if size else 0,
-        'modified_at': datetime.fromtimestamp(PMTILES_PATH.stat().st_mtime, timezone.utc).isoformat() if exists else None,
+        'modified_at': datetime.fromtimestamp(archive.stat().st_mtime, timezone.utc).isoformat() if exists else None,
     }
 
 def test_map_provider(cfg=None):
@@ -2659,16 +2680,16 @@ def test_map_provider(cfg=None):
     if provider == 'none':
         return {'ok':True,'provider':'none','message':'Basemap is disabled; observation overlays remain available.'}
     if provider == 'selfhosted':
-        info=pmtiles_info()
+        info=pmtiles_info(cfg.get('tile_url_template') or '/maps/region.pmtiles')
         if not info['exists']:
             raise ValueError('maps/region.pmtiles is missing; run docker compose --profile map-setup run --rm map-init')
         if info['bytes'] < 1024:
             raise ValueError('maps/region.pmtiles is too small to be a valid regional archive')
-        with PMTILES_PATH.open('rb') as f:
+        with local_map_path(info['url']).open('rb') as f:
             magic=f.read(7)
         if magic != b'PMTiles':
             raise ValueError('maps/region.pmtiles does not have a PMTiles header')
-        return {'ok':True,'provider':'selfhosted','endpoint':'/maps/region.pmtiles','content_type':'application/vnd.pmtiles',**info}
+        return {'ok':True,'provider':'selfhosted','endpoint':info['url'],'content_type':'application/vnd.pmtiles',**info}
     template=validate_tile_template(cfg.get('tile_url_template'))
     url=template.replace('{z}','0').replace('{x}','0').replace('{y}','0')
     req=urllib.request.Request(url,headers={'User-Agent':'WardriverLocal/2.9.5 basemap test','Accept':'image/*'})
@@ -3512,10 +3533,11 @@ def parse_byte_range(value, size):
         raise ValueError('range outside file')
     return start,min(end,size-1)
 
-def send_pmtiles(handler, head_only=False):
-    if not PMTILES_PATH.exists() or not PMTILES_PATH.is_file():
+def send_pmtiles(handler, head_only=False, archive=None):
+    archive=archive or PMTILES_PATH
+    if not archive.exists() or not archive.is_file():
         handler.send_response(404); handler.send_header('Cache-Control','no-store'); handler.end_headers(); return
-    size=PMTILES_PATH.stat().st_size
+    size=archive.stat().st_size
     try:
         rng=parse_byte_range(handler.headers.get('Range'), size)
     except Exception:
@@ -3532,7 +3554,7 @@ def send_pmtiles(handler, head_only=False):
     handler.send_header('Access-Control-Allow-Origin','*')
     handler.end_headers()
     if head_only:return
-    with PMTILES_PATH.open('rb') as f:
+    with archive.open('rb') as f:
         f.seek(start); remaining=length
         while remaining>0:
             chunk=f.read(min(1024*1024,remaining))
@@ -4009,6 +4031,9 @@ class H(BaseHTTPRequestHandler):
     def do_HEAD(self):
         path=urllib.parse.urlsplit(self.path).path
         if path=='/maps/region.pmtiles': return send_pmtiles(self, True)
+        if path.startswith('/maps/areas/'):
+            try: return send_pmtiles(self, True, local_map_path(path))
+            except ValueError: return self.json(404, {'ok':False,'error':'Map area not found'})
         if path in ('/','/dashboard','/dashboard/','/api/health'):
             self.send_response(200); self.send_header('Cache-Control','no-store'); self.end_headers(); return
         self.send_response(404); self.end_headers()
@@ -4016,6 +4041,9 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         path=urllib.parse.urlsplit(self.path).path
         if path=='/maps/region.pmtiles': return send_pmtiles(self, False)
+        if path.startswith('/maps/areas/'):
+            try: return send_pmtiles(self, False, local_map_path(path))
+            except ValueError: return self.json(404, {'ok':False,'error':'Map area not found'})
         if path=='/api/cell-towers':
             try:
                 q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
@@ -4031,6 +4059,9 @@ class H(BaseHTTPRequestHandler):
                 img=qrcode.make(text,image_factory=qrcode.image.svg.SvgPathImage,box_size=8,border=2)
                 out=io.BytesIO(); img.save(out); return self.send_bytes(200,out.getvalue(),'image/svg+xml',{'Cache-Control':'no-store'})
             except Exception as e: return self.send_bytes(400,str(e),'text/plain')
+        if path=='/api/map/areas':
+            try: return self.json(200, map_area_manager().status())
+            except Exception as e: return self.json(400, {'ok':False,'error':str(e)})
         if path=='/api/map/archive': return self.json(200,{'ok':True,**pmtiles_info()})
         if path=='/api/health': return self.json(200,{'ok':True,'database':'sqlite','path':str(DB_PATH),'auth':False,'version':APP_VERSION})
         if path.startswith('/api/tiles/'):
@@ -4148,6 +4179,24 @@ class H(BaseHTTPRequestHandler):
         except ValueError:return self.json(400,{'ok':False,'error':'Invalid Content-Length'})
         limit=IMPORT_MAX_BYTES if path=='/api/import' else FLOCK_PHOTO_MAX_BYTES if path=='/api/flock/photo' else 1024*1024
         if length<0 or length>limit:return self.json(413,{'ok':False,'error':'Request body exceeds endpoint limit'})
+        if path.startswith('/api/map/areas/'):
+            try:
+                manager=map_area_manager()
+                if not __import__('secrets').compare_digest(self.headers.get('X-Map-Areas-Token', ''), manager.token):
+                    return self.json(403, {'ok':False,'error':'Refresh the map-area settings and try again'})
+                if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+                    raise ValueError('JSON request required')
+                payload=json.loads(self.rfile.read(length))
+                if not isinstance(payload, dict): raise ValueError('JSON object required')
+                action=path.rsplit('/',1)[-1]
+                if action=='search':
+                    return self.json(200, {'ok':True,'results':manager.search(payload.get('query',''), GEOCODER_URL)})
+                if action=='download': manager.start(payload)
+                elif action=='cancel': manager.cancel()
+                elif action=='delete': manager.remove(payload.get('id'), map_settings().get('tile_url_template'))
+                else: return self.json(404, {'ok':False,'error':'Unknown map-area action'})
+                return self.json(200, manager.status())
+            except Exception as e: return self.json(400, {'ok':False,'error':str(e)})
         if path=='/api/cell-towers/fetch':
             try:
                 payload=json.loads(self.rfile.read(length))
@@ -4271,7 +4320,9 @@ class H(BaseHTTPRequestHandler):
                 if provider not in ('none','selfhosted','custom'): raise ValueError('invalid basemap provider')
                 template=str(payload.get('tile_url_template') or '').strip()
                 if provider=='custom': validate_tile_template(template)
-                elif provider=='selfhosted': template='/maps/region.pmtiles'
+                elif provider=='selfhosted':
+                    template=template or '/maps/region.pmtiles'
+                    local_map_path(template)
                 attribution=str(payload.get('attribution') or '').strip()[:500]
                 cache_allowed=1 if payload.get('cache_allowed') and provider=='custom' else 0
                 conn=db(); conn.execute('update map_settings set provider=?,tile_url_template=?,attribution=?,cache_allowed=?,updated_at=? where id=1',(provider,template,attribution,cache_allowed,datetime.now(timezone.utc).isoformat())); conn.commit(); conn.close()

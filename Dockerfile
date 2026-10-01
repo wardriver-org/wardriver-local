@@ -1,3 +1,5 @@
+FROM protomaps/go-pmtiles:v1.30.1 AS mapdownloader
+
 FROM node:22-alpine AS webdeps
 WORKDIR /deps
 RUN npm init -y >/dev/null 2>&1 \
@@ -5,7 +7,8 @@ RUN npm init -y >/dev/null 2>&1 \
 
 FROM python:3.13-alpine
 WORKDIR /app
-COPY server.py cell_towers.py wigle_sync.py neighborhoods.py /app/
+COPY server.py cell_towers.py wigle_sync.py neighborhoods.py map_areas.py /app/
+COPY --from=mapdownloader /go-pmtiles /usr/local/bin/pmtiles
 COPY catalog /app/catalog
 COPY qrcode /app/qrcode
 COPY public /app/public
