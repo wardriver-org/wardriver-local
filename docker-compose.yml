@@ -19,6 +19,8 @@ services:
       WARDIVER_ROUTER_TIMEOUT: ${WARDIVER_ROUTER_TIMEOUT:-12}
       WARDIVER_TILE_DIR: /data/tiles
       WARDIVER_PMTILES: /maps/region.pmtiles
+      WARDIVER_MAP_AREA_MAX_GB: ${WARDIVER_MAP_AREA_MAX_GB:-20}
+      WARDIVER_MAP_AREA_TIMEOUT: ${WARDIVER_MAP_AREA_TIMEOUT:-21600}
       # Enable selfhosted after installing your chosen PMTiles region.
       # Existing SQLite settings are migrated from the old TileServer URL.
       WARDIVER_BASEMAP_PROVIDER: ${WARDIVER_BASEMAP_PROVIDER:-none}
